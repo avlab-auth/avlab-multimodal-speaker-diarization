@@ -1,0 +1,10 @@
+venv
+.idea
+src/__pycache__
+*.mp4
+*.wav
+*.jpg
+*.json
+src/steps/__pycache__/
+*.txt
+.DS_STORE
