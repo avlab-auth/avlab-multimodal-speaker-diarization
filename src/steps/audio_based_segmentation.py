@@ -86,8 +86,8 @@ def get_lstm_siamese(input_shape, feature_vector_size, lstm_nodes, dropout):
 
     def create_base_network(input_shape):
         model = Sequential()
-        model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=True, dropout=dropout, recurrent_dropout=dropout), input_shape=input_shape))
-        model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=False, dropout=dropout, recurrent_dropout=dropout)))
+        # model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=True, dropout=dropout, recurrent_dropout=dropout), input_shape=input_shape))
+        # model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=False, dropout=dropout, recurrent_dropout=dropout)))
         # model.add(LSTM(1024, return_sequences=False, dropout=0.2, recurrent_dropout=0.2))
         # model.add(LSTM(64, return_sequences=False))
         # model.add(Dropout(0.1))
@@ -95,6 +95,12 @@ def get_lstm_siamese(input_shape, feature_vector_size, lstm_nodes, dropout):
         # model.add(Dropout(0.4))
         # model.add(LSTM(256))
         # model.add(Dropout(0.2))
+        # model.add(Dense(feature_vector_size, activation='relu'))
+        # model.add(Dense(feature_vector_size, activation='relu'))
+
+        model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=True, dropout=dropout), input_shape=input_shape))
+        model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=False, dropout=dropout)))
+
         model.add(Dense(feature_vector_size, activation='relu'))
         model.add(Dense(feature_vector_size, activation='relu'))
 
@@ -213,7 +219,8 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
 
     original_embeddings = intermediate.predict(X)
 
-    clustering_algorithm = GaussianMixture(n_components=clusters, max_iter=1000, n_init=3)
+    # clustering_algorithm = GaussianMixture(n_components=clusters, max_iter=1000, n_init=3)
+    clustering_algorithm = KMeans(n_clusters=clusters)
 
     # if visualise:
     #
@@ -244,8 +251,8 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
     #     plt.scatter(two_dimensional[:, 0], two_dimensional[:, 1], c=predictions, marker='.')
     #
     # else:
-    tsne = TSNE(n_components=2, init='pca')
-    two_dimensional = tsne.fit_transform(original_embeddings)
+    # tsne = TSNE(n_components=2, init='pca')
+    # two_dimensional = tsne.fit_transform(original_embeddings)
 
     #         original_embeddings = scale((original_embeddings))
 
@@ -255,8 +262,8 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
     #         pca2 = PCA(n_components=3)
     #         pca_embeddings = pca2.fit_transform(original_embeddings)
 
-    clustering_algorithm.fit(two_dimensional)
-    predictions = clustering_algorithm.predict(two_dimensional)
+    # clustering_algorithm.fit(two_dimensional)
+    # predictions = clustering_algorithm.predict(two_dimensional)
 
     #         kmeans = KMeans(n_clusters=CLUSTERS)
     #         kmeans.fit(two_dimensional)
@@ -272,6 +279,9 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
 
     #         predictions = kmeans.labels_.tolist()
 
+    reducted_embeddings = original_embeddings
+    predictions = clustering_algorithm.fit_predict(reducted_embeddings)
+
     for k, speech_index in enumerate(speech_indices[0]):
         frame_predictions[speech_index] = predictions[k]
 
@@ -284,7 +294,7 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
             "end_seconds": lbl.end_seconds,
             "label": lbl.label
         })
-    with open(os.path.join(lbls_dir, youtube_video_id + ".audio.json"), 'w') as outfile:
-        json.dump(json_lbls, outfile)
+    # with open(os.path.join(lbls_dir, youtube_video_id + ".audio.json"), 'w') as outfile:
+    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".audio.txt"))

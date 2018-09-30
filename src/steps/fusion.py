@@ -1,6 +1,6 @@
 import os
 import json
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, OrderedDict
 import operator
 from sac.util import Util
 
@@ -92,29 +92,35 @@ def detect_face_voice_mapping(pairs):
     return mapping_face_to_voice
 
 
-def calculate_fusion(youtube_video_id, lbls_dir, audio_lbls, image_lbls, duration, step=0.1): # 100ms
+def calculate_fusion(youtube_video_id, lbls_dir, audio_lbls, image_lbls, duration, step=0.1,
+                     neighbours_before_after=6, times_greater=2): # 100ms
 
     pairs, timestamps = create_pairs(audio_lbls, image_lbls, duration, step)
     mapping_face_to_voice = detect_face_voice_mapping(pairs)
-    print(mapping_face_to_voice)
+    # print(mapping_face_to_voice)
     pairs = apply_mapping_to_pairs(pairs, mapping_face_to_voice)
-    print(pairs)
-
+    # print(pairs)
+    seconds_of_mismatch = 0
     for k, pair in enumerate(pairs):
         if pair.image_class is None:
             # when image is None
             continue
         classes = pair.image_class.split(",")
+        # if only one face has been detected then assume it's the face of the speaker
         if len(classes) == 1 and pair.audio_class != 'non_speech':
             if pair.image_class != pair.audio_class:
+                seconds_of_mismatch += step
                 # print("%s != %s" % (pair.image_class, pair.audio_class))
-                nearest_neighbour_class = find_nearest_neighbours_class(k, pairs)
+                nearest_neighbour_class = find_nearest_neighbours_class(k, pairs,
+                                                                        neighbours_before_after=neighbours_before_after,
+                                                                        times_greater=times_greater)
                 pair.audio_class = nearest_neighbour_class
 
-    print(pairs)
+    # print("secs of mismatch: %s" % seconds_of_mismatch)
+    # print(pairs)
 
     lbls = Util.generate_labels_from_classifications([p.audio_class for p in pairs], timestamps)
-    lbls = filter(lambda x: x.label is not None, lbls)
+    lbls = list(filter(lambda x: x.label is not None, lbls))
 
     json_lbls = []
     for lbl in lbls:
@@ -123,31 +129,53 @@ def calculate_fusion(youtube_video_id, lbls_dir, audio_lbls, image_lbls, duratio
             "end_seconds": lbl.end_seconds,
             "label": lbl.label
         })
-    with open(os.path.join(lbls_dir, youtube_video_id + ".fusion.json"), 'w') as outfile:
-        json.dump(json_lbls, outfile)
+    # with open(os.path.join(lbls_dir, youtube_video_id + ".fusion.json"), 'w') as outfile:
+    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".fusion.txt"))
     return mapping_face_to_voice
 
-def find_nearest_neighbours_class(position, pairs, neighbours_before_after=6):
 
+def find_nearest_neighbours_class(position, pairs, neighbours_before_after=6, times_greater=2):
+
+    # gen the neighbouring image faces before and after the sample
     neighbour_image_classes = [
         p.image_class for p in pairs[position-neighbours_before_after:position+neighbours_before_after]
     ]
+    # print(neighbour_image_classes)
 
+    # remove all the non_speech samples
     neighbour_image_classes = list(filter(lambda x: x != 'non_speech', neighbour_image_classes))
+    # keep only images with a single face
+    neighbour_image_classes = list(filter(lambda x: len(x.split(",")) == 1, neighbour_image_classes))
 
+    # if there are 0 neighbours stick with the audio calss
     if len(neighbour_image_classes) == 0:
         return pairs[position].audio_class
 
     neighbour_image_classes = Counter(neighbour_image_classes)
 
-    most_popular_class = max(neighbour_image_classes.items(), key=operator.itemgetter(1))[0]
-    classes = most_popular_class.split(",")
-    if len(classes) == 1:
-        return most_popular_class
+    sorted_neighbour_image_classes = sorted(neighbour_image_classes.items(), key=lambda x:x[1], reverse=True)
+
+    # print(pairs[position].audio_class)
+    # print(sorted_neighbour_image_classes)
+
+    # if there's only one face then that's the most popular
+    if len(sorted_neighbour_image_classes) == 1:
+        return sorted_neighbour_image_classes[0][0]
+
+    # if between the two most popular classes there's not much difference return the audio class
+    if sorted_neighbour_image_classes[0][1]/sorted_neighbour_image_classes[1][1] > times_greater:
+        return sorted_neighbour_image_classes[0][0]
     else:
         return pairs[position].audio_class
+
+    # most_popular_class = max(neighbour_image_classes.items(), key=operator.itemgetter(1))[0]
+    # classes = most_popular_class.split(",")
+    # if len(classes) == 1:
+    #     return most_popular_class
+    # else:
+    #     return pairs[position].audio_class
 
 
 # if __name__ == '__main__':

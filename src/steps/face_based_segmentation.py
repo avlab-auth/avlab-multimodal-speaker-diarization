@@ -7,23 +7,20 @@ import numpy
 from sklearn.cluster import KMeans
 from sac.util import Util
 import pandas as pd
-import shutil
-import json
+from dlib import face_recognition_model_v1, get_frontal_face_detector
 
 FRAMES_PER_STEP = 5
 
+
 def extract_images_from_video(input_video_file_path, output_dir_path):
-    video_id = os.path.basename(input_video_file_path).split('.')[0]
-    if os.path.isdir(os.path.join(output_dir_path, video_id)):
-        shutil.rmtree(os.path.join(output_dir_path, video_id))
-    os.makedirs(os.path.join(output_dir_path, video_id))
+    os.makedirs(os.path.join(output_dir_path))
 
     check_call(['ffmpeg', '-i', input_video_file_path, '-qscale:v', '2',
-                os.path.join(output_dir_path, video_id, 'img%6d.jpg')])
+                os.path.join(output_dir_path, 'img%6d.jpg')])
 
 
 def generate_face_based_segmentation(youtube_video_id, images_dir, lbls_dir, faces, predictor_path,
-                                     face_rec_model_path):
+                                     face_rec_model_path, tmp_dir):
 
     images_raw = glob(os.path.join(images_dir, "*.jpg"))
     images_raw.sort()
@@ -33,32 +30,42 @@ def generate_face_based_segmentation(youtube_video_id, images_dir, lbls_dir, fac
     timestamps = [i * (FRAMES_PER_STEP/25.0) for i in range(0, len(images))]
     print(timestamps)
 
-    detector = dlib.get_frontal_face_detector()
+    detector = get_frontal_face_detector()
     sp = dlib.shape_predictor(predictor_path)
-    facerec = dlib.face_recognition_model_v1(face_rec_model_path)
+    facerec = face_recognition_model_v1(face_rec_model_path)
 
     embeddings = []
     embeddings_timestamps = []
     landmarks_parts = []
     landmarks_rect = []
 
-    for frame_no, f in enumerate(images):
-        print("Processing file: {}".format(f))
-        img = io.imread(f)
+    embeddings_pickle = os.path.join(tmp_dir, "embeddings.npy")
+    embeddings_timestamps_pickle = os.path.join(tmp_dir, "embeddings_timestamps.npy")
 
-        dets = detector(img, 1)
-        print("Number of faces detected: {}".format(len(dets)))
+    if not os.path.isfile(embeddings_pickle) or not os.path.isfile(embeddings_timestamps_pickle):
 
-        for k, d in enumerate(dets):
-            shape = sp(img, d)
-            face_descriptor = facerec.compute_face_descriptor(img, shape)
-            embeddings.append(face_descriptor)
-            embeddings_timestamps.append(timestamps[frame_no])
-            landmarks_parts.append(shape.parts())
-            landmarks_rect.append(shape.rect)
+        for frame_no, f in enumerate(images):
+            print("Processing file: {}".format(f))
+            img = io.imread(f)
 
-    embeddings = numpy.array(embeddings)
-    embeddings_timestamps = numpy.array(embeddings_timestamps)
+            dets = detector(img, 1)
+            print("Number of faces detected: {}".format(len(dets)))
+
+            for k, d in enumerate(dets):
+                shape = sp(img, d)
+                face_descriptor = facerec.compute_face_descriptor(img, shape)
+                embeddings.append(face_descriptor)
+                embeddings_timestamps.append(timestamps[frame_no])
+                landmarks_parts.append(shape.parts())
+                landmarks_rect.append(shape.rect)
+
+        embeddings = numpy.array(embeddings)
+        embeddings_timestamps = numpy.array(embeddings_timestamps)
+        numpy.save(embeddings_pickle, embeddings)
+        numpy.save(embeddings_timestamps_pickle, embeddings_timestamps)
+    else:
+        embeddings = numpy.load(embeddings_pickle)
+        embeddings_timestamps = numpy.load(embeddings_timestamps_pickle)
 
     print(embeddings.shape)
     print(embeddings_timestamps.shape)
@@ -88,8 +95,8 @@ def generate_face_based_segmentation(youtube_video_id, images_dir, lbls_dir, fac
             "end_seconds": lbl.end_seconds,
             "label": lbl.label
         })
-    with open(os.path.join(lbls_dir, youtube_video_id + ".image.json"), 'w') as outfile:
-        json.dump(json_lbls, outfile)
+    # with open(os.path.join(lbls_dir, youtube_video_id + ".image.json"), 'w') as outfile:
+    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".image.txt"))
 
