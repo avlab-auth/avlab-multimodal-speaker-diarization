@@ -26,7 +26,7 @@ usage: run.py [-h] --speakers SPEAKERS [--ground-truth GROUND_TRUTH]
 To run with docker we are going to use the pre-baked image of the algorithm available in docker hub. 
 By running the following under the root of this repo 
 ```
-docker run -v $(pwd):/volume -it test:latest bash
+docker run -v $(pwd):/volume -it nicktgr15/avlab-multimodal-speaker-diarization bash
 ```
 we are going to get a command line prompt like the following
 ```
