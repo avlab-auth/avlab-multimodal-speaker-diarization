@@ -88,29 +88,5 @@ def generate_face_based_segmentation(youtube_video_id, images_dir, lbls_dir, fac
         classes.append(",".join([str(i) for i in sorted(group['predictions'].tolist())]))
 
     lbls = Util.generate_labels_from_classifications(classes, timestamps)
-    json_lbls = []
-    for lbl in lbls:
-        json_lbls.append({
-            "start_seconds": lbl.start_seconds,
-            "end_seconds": lbl.end_seconds,
-            "label": lbl.label
-        })
-    # with open(os.path.join(lbls_dir, youtube_video_id + ".image.json"), 'w') as outfile:
-    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".image.txt"))
-
-
-# if __name__ == '__main__':
-#
-#     extract_images_from_video("/Users/nicktgr15/workspace/speaker_diarisation_poc/src/videos/Unamij6z1io.mp4",
-#                               "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/video_frames")
-#
-#     generate_face_based_segmentation(
-#         "Unamij6z1io",
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/video_frames/Unamij6z1io",
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/static/lbls/image",
-#         4,
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/models/shape_predictor_68_face_landmarks.dat",
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/models/dlib_face_recognition_resnet_model_v1.dat"
-#     )

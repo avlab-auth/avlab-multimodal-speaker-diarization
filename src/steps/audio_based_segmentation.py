@@ -3,19 +3,11 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-from sklearn.manifold import TSNE
-from sac.util import Util, AudacityLabel
-import matplotlib.pyplot as plt
+from sac.util import Util
 import numpy
-from sklearn import preprocessing
-from sac.methods.vad import Vad
-from sklearn.mixture import GaussianMixture
-import json
-import pickle
 
-from random import sample, seed
+from random import seed
 
-import keras
 import librosa
 import numpy as np
 from keras import Input
@@ -25,22 +17,12 @@ from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten, Activati
     MaxPooling1D, Lambda, LSTM, regularizers
 from keras.models import Sequential
 from keras.optimizers import Adam, SGD, RMSprop
-from librosa.display import specshow
 from librosa.feature import melspectrogram, mfcc
 from sklearn.cluster import KMeans
-from sklearn.model_selection import train_test_split
 import pickle
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import scale
-from glob import glob
 import os
-from copy import copy, deepcopy
 from sac.methods.vad import Vad
-import time
-import sklearn.preprocessing
 from keras.layers.wrappers import Bidirectional
-from keras.layers.wrappers import TimeDistributed
-
 
 seed(12345)
 np.random.seed(42)
@@ -55,7 +37,7 @@ def accuracy(y_true, y_pred):
     # different = 0
     # 1, 1.5<2.0 => 1
     # 0, 2.25 > 2.0 => 0
-    return K.mean(K.equal(y_true, K.cast(y_pred < MARGIN/2.0, y_true.dtype)))
+    return K.mean(K.equal(y_true, K.cast(y_pred < MARGIN / 2.0, y_true.dtype)))
 
 
 def eucl_dist_output_shape(shapes):
@@ -76,27 +58,13 @@ def contrastive_loss(y, d):
 
 def euclidean_distance(vects):
     x, y = vects
-    # x = K.l2_normalize(x, axis=-1)
-    # y = K.l2_normalize(y, axis=-1)
     return K.sqrt(
         K.maximum(K.sum(K.square(x - y), axis=1, keepdims=True), K.epsilon()))
 
 
 def get_lstm_siamese(input_shape, feature_vector_size, lstm_nodes, dropout):
-
     def create_base_network(input_shape):
         model = Sequential()
-        # model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=True, dropout=dropout, recurrent_dropout=dropout), input_shape=input_shape))
-        # model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=False, dropout=dropout, recurrent_dropout=dropout)))
-        # model.add(LSTM(1024, return_sequences=False, dropout=0.2, recurrent_dropout=0.2))
-        # model.add(LSTM(64, return_sequences=False))
-        # model.add(Dropout(0.1))
-        # model.add(LSTM(128, return_sequences=False))
-        # model.add(Dropout(0.4))
-        # model.add(LSTM(256))
-        # model.add(Dropout(0.2))
-        # model.add(Dense(feature_vector_size, activation='relu'))
-        # model.add(Dense(feature_vector_size, activation='relu'))
 
         model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=True, dropout=dropout), input_shape=input_shape))
         model.add(Bidirectional(LSTM(lstm_nodes, return_sequences=False, dropout=dropout)))
@@ -127,13 +95,9 @@ def get_lstm_siamese(input_shape, feature_vector_size, lstm_nodes, dropout):
 
     print(model.summary())
 
-    # optimiser = RMSprop()
     optimiser = Adam()
 
     model.compile(loss=contrastive_loss, optimizer=optimiser, metrics=[accuracy])
-
-    # loss_weights = {
-    #     'main_output': 1.0, 'sequential_1': 0.0}
 
     intermediate_layer_model = Model(input=base_network.layers[0].input, output=base_network.layers[-1].output)
 
@@ -154,7 +118,7 @@ class FeatExtractorMFCC(object):
 
     def extract(self, audio_file):
         y, sr = librosa.load(audio_file, sr=self.sr)
-        D = mfcc(y, sr=self.sr, n_mfcc=self.mfcc_no+2, n_fft=self.window_size, hop_length=self.hop_size)
+        D = mfcc(y, sr=self.sr, n_mfcc=self.mfcc_no + 2, n_fft=self.window_size, hop_length=self.hop_size)
         D = D[2:, :]
 
         feats = []
@@ -208,10 +172,6 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
     speech_indices = numpy.where(frame_predictions == 'speech')
 
     X_speech = X[speech_indices]
-    timestamps_speech = timestamps[speech_indices]
-
-    # Util.write_audacity_labels(Util.generate_labels_from_classifications(frame_predictions, timestamps),
-    #                            "vad_preds_quant.txt")
 
     X = X_speech.reshape((X_speech.shape[0] * w, h))
     X = scaler.transform(X)
@@ -219,65 +179,7 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
 
     original_embeddings = intermediate.predict(X)
 
-    # clustering_algorithm = GaussianMixture(n_components=clusters, max_iter=1000, n_init=3)
     clustering_algorithm = KMeans(n_clusters=clusters)
-
-    # if visualise:
-    #
-    #     embeddings, y, classes, new_timestamps = Util.get_annotated_data_x_y(timestamps_speech, original_embeddings,
-    #                                                                          lbls_fixed)
-    #     le = preprocessing.LabelEncoder()
-    #     y = le.fit_transform(y)
-    #
-    #     tsne = TSNE()
-    #     two_dimensional = tsne.fit_transform(embeddings)
-    #
-    #     #         pca = PCA(n_components=2)
-    #     #         two_dimensional = pca.fit_transform(embeddings)
-    #
-    #     #         pca2 = PCA(n_components=20)
-    #     #         pca_embeddings = pca2.fit_transform(embeddings)
-    #
-    #     clustering_algorithm.fit(two_dimensional)
-    #     predictions = clustering_algorithm.predict(two_dimensional)
-    #
-    #     #        kmeans = KMeans(n_clusters=CLUSTERS)
-    #     #        kmeans.fit(embeddings)
-    #
-    #     plt.figure(figsize=(10, 6))
-    #     plt.scatter(two_dimensional[:, 0], two_dimensional[:, 1], c=y, marker='.')
-    #
-    #     plt.figure(figsize=(10, 6))
-    #     plt.scatter(two_dimensional[:, 0], two_dimensional[:, 1], c=predictions, marker='.')
-    #
-    # else:
-    # tsne = TSNE(n_components=2, init='pca')
-    # two_dimensional = tsne.fit_transform(original_embeddings)
-
-    #         original_embeddings = scale((original_embeddings))
-
-    #         pca = PCA(n_components=2)
-    #         two_dimensional = pca.fit_transform(original_embeddings)
-
-    #         pca2 = PCA(n_components=3)
-    #         pca_embeddings = pca2.fit_transform(original_embeddings)
-
-    # clustering_algorithm.fit(two_dimensional)
-    # predictions = clustering_algorithm.predict(two_dimensional)
-
-    #         kmeans = KMeans(n_clusters=CLUSTERS)
-    #         kmeans.fit(two_dimensional)
-
-    # plt.figure(figsize=(10,10))
-    # plt.imshow(calculate_similarity_matrix(two_dimensional, metric='euclidean'), cmap='gray')
-
-    # plt.figure(figsize=(10,6))
-    # plt.scatter(two_dimensional[:, 0], two_dimensional[:, 1], c=predictions, marker='.')
-
-    #         plt.figure(figsize=(10,6))
-    #         plt.scatter(two_dimensional[:, 0], pca_embeddings[:, 1], c=kmeans.labels_.tolist(), marker='.')
-
-    #         predictions = kmeans.labels_.tolist()
 
     reducted_embeddings = original_embeddings
     predictions = clustering_algorithm.fit_predict(reducted_embeddings)
@@ -286,15 +188,5 @@ def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nod
         frame_predictions[speech_index] = predictions[k]
 
     lbls = Util.generate_labels_from_classifications(frame_predictions, timestamps)
-
-    json_lbls = []
-    for lbl in lbls:
-        json_lbls.append({
-            "start_seconds": lbl.start_seconds,
-            "end_seconds": lbl.end_seconds,
-            "label": lbl.label
-        })
-    # with open(os.path.join(lbls_dir, youtube_video_id + ".audio.json"), 'w') as outfile:
-    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".audio.txt"))

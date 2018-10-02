@@ -1,30 +1,43 @@
-https://youtu.be/Unamij6z1io
-https://youtu.be/4Z3Pwygta58
+# Getting Started
 
-https://youtu.be/0KUoPilGyHE  v2 (firm)
-https://youtu.be/lr2a17Iu9qM  v3 (loose)
+There are two ways to run the code:
 
-https://youtu.be/j1vHbr4Tj5w  v4 (less loose)
+- On linux or macos by installing `ffmpeg`, `youtube-dl` and `requirements.txt` in a python 3 virtual environment.
+- Using the provided docker container which comes with all the required dependencies pre-installed.
 
+## Run using virtualenv
 
-RESULTS
+By running the following steps 
+```
+virtualenv venv
+. venv/bin/activate
+python run.py
+```
+we are going to get the cli help message
+```
+usage: run.py [-h] --speakers SPEAKERS [--ground-truth GROUND_TRUTH]
+              [--analysis-type {unimodal,multimodal}] [--no-cache]
+              [--output-dir OUTPUT_DIR]
+              (--audio-file AUDIO_FILE | --video-file VIDEO_FILE | --youtube-video-url YOUTUBE_VIDEO_URL)
+```
 
-https://youtu.be/0KUoPilGyHE  v2 (firm)
-fusion der: 0.2253998476117125
-audio der: 0.2582760524911022
+## Run using docker
 
-https://youtu.be/lr2a17Iu9qM  v3 (loose)
-fusion der: 0.2640418098785251
-audio der: 0.2582760524911022
+To run with docker we are going to use the pre-baked image of the algorithm available in docker hub. 
+By running the following under the root of this repo 
+```
+docker run -v $(pwd):/volume -it test:latest bash
+```
+we are going to get a command line prompt like the following
+```
+root@a1ae2484325a:/src#
+```
+Running `python3 run.py` will print the help message. 
 
-https://youtu.be/j1vHbr4Tj5w  v4 (less loose)
-fusion der: 0.2553035914545844
-audio der: 0.2582760524911022
+To run the code against the test fixtures we can do the following 
 
+```
+python3 run.py --speakers 4 --video-file /volume/tests/fixtures/trimmed-video.mp4 --output-dir /volume --ground-truth /volume/tests/fixtures/ground_truth.txt --analysis-type multimodal
 
-One graph two videos with the fusion performance
-
-X axis => factor
-Y axis => der
-
-
+```
+the `/volume` dir is a docker volume that is used to exchange data between the container and the host machine.

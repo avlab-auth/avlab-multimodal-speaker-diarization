@@ -116,21 +116,8 @@ def calculate_fusion(youtube_video_id, lbls_dir, audio_lbls, image_lbls, duratio
                                                                         times_greater=times_greater)
                 pair.audio_class = nearest_neighbour_class
 
-    # print("secs of mismatch: %s" % seconds_of_mismatch)
-    # print(pairs)
-
     lbls = Util.generate_labels_from_classifications([p.audio_class for p in pairs], timestamps)
     lbls = list(filter(lambda x: x.label is not None, lbls))
-
-    json_lbls = []
-    for lbl in lbls:
-        json_lbls.append({
-            "start_seconds": lbl.start_seconds,
-            "end_seconds": lbl.end_seconds,
-            "label": lbl.label
-        })
-    # with open(os.path.join(lbls_dir, youtube_video_id + ".fusion.json"), 'w') as outfile:
-    #     json.dump(json_lbls, outfile)
 
     Util.write_audacity_labels(lbls, os.path.join(lbls_dir, youtube_video_id + ".fusion.txt"))
     return mapping_face_to_voice
@@ -142,7 +129,6 @@ def find_nearest_neighbours_class(position, pairs, neighbours_before_after=6, ti
     neighbour_image_classes = [
         p.image_class for p in pairs[position-neighbours_before_after:position+neighbours_before_after]
     ]
-    # print(neighbour_image_classes)
 
     # remove all the non_speech samples
     neighbour_image_classes = list(filter(lambda x: x != 'non_speech', neighbour_image_classes))
@@ -157,9 +143,6 @@ def find_nearest_neighbours_class(position, pairs, neighbours_before_after=6, ti
 
     sorted_neighbour_image_classes = sorted(neighbour_image_classes.items(), key=lambda x:x[1], reverse=True)
 
-    # print(pairs[position].audio_class)
-    # print(sorted_neighbour_image_classes)
-
     # if there's only one face then that's the most popular
     if len(sorted_neighbour_image_classes) == 1:
         return sorted_neighbour_image_classes[0][0]
@@ -169,20 +152,3 @@ def find_nearest_neighbours_class(position, pairs, neighbours_before_after=6, ti
         return sorted_neighbour_image_classes[0][0]
     else:
         return pairs[position].audio_class
-
-    # most_popular_class = max(neighbour_image_classes.items(), key=operator.itemgetter(1))[0]
-    # classes = most_popular_class.split(",")
-    # if len(classes) == 1:
-    #     return most_popular_class
-    # else:
-    #     return pairs[position].audio_class
-
-
-# if __name__ == '__main__':
-#
-#     audio_lbls = Util.read_audacity_labels(
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/static/lbls/audio/Unamij6z1io.txt")
-#     image_lbls = Util.read_audacity_labels(
-#         "/Users/nicktgr15/workspace/speaker_diarisation_poc/src/static/lbls/image/Unamij6z1io.txt")
-#
-#     calculate_fusion(audio_lbls, image_lbls, 443.129625)
