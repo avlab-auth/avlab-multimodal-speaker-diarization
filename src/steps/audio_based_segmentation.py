@@ -138,6 +138,49 @@ class FeatExtractorMFCC(object):
         return feats, timestamps
 
 
+def generate_embeddings(audio_file, w, h, embedding_size, lstm_nodes, dropout, weights_filename,
+                        scaler_filename, window_size, step, hop_size, sr=16000):
+    vad = Vad()
+    vad_lbls = vad.detect_voice_segments(audio_file)
+    with open(scaler_filename, 'rb') as f:
+        scaler = pickle.load(f)
+
+    model, intermediate = get_lstm_siamese((w, h), embedding_size, lstm_nodes, dropout)
+    model.load_weights(weights_filename)
+    feature_extractor = FeatExtractorMFCC(window_size, hop_size, w, sr, h, step=step)
+    X, timestamps = feature_extractor.extract(audio_file)
+    timestamps = numpy.array(timestamps)
+    window = timestamps[1] - timestamps[0]
+
+    frame_predictions = []
+
+    for k, timestamp in enumerate(timestamps):
+        found = False
+        for lbl in vad_lbls:
+            if lbl.start_seconds <= timestamp <= lbl.end_seconds - window:  # need the window end to fit in the label
+                frame_predictions.append(lbl.label)
+                found = True
+                break
+        if not found:
+            frame_predictions.append('non_speech')
+
+    frame_predictions = numpy.array(frame_predictions)
+    print(frame_predictions.shape)
+    print(timestamps.shape)
+
+    speech_indices = numpy.where(frame_predictions == 'speech')
+
+    X_speech = X[speech_indices]
+
+    X = X_speech.reshape((X_speech.shape[0] * w, h))
+    X = scaler.transform(X)
+    X = X.reshape(-1, w, h)
+
+    original_embeddings = intermediate.predict(X)
+
+    return original_embeddings
+
+
 def generate_audio_based_segmentation(audio_file, w, h, embedding_size, lstm_nodes, dropout, weights_filename,
                                       scaler_filename, window_size, step, hop_size, youtube_video_id, lbls_dir,
                                       clusters=4, sr=16000):
